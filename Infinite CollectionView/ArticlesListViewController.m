@@ -15,7 +15,12 @@ static CGFloat const kCellHeight = 60;
 static CGFloat const kCellMargin = 15;
 
 static NSString *const kCellID = @"cellID";
-static NSUInteger const batchSize = 20;
+static int const kDataSize = 30;
+static int const kInsertBatchSize = 10;
+static int const kMaxTag = 100;
+
+static int const kDeleteBatchSizePortrait = 2;
+static int const kDeleteBatchSizeLandscape = 3;
 
 @implementation ArticlesListViewController
 {
@@ -25,6 +30,8 @@ static NSUInteger const batchSize = 20;
 - (void)viewDidLoad
 {
 	[super viewDidLoad];
+
+	self.navigationItem.title = @"Infinite CollectionView";
 
 	// CollectionView flowLayout
 	UICollectionViewFlowLayout *flowLayout = [UICollectionViewFlowLayout new];
@@ -39,7 +46,7 @@ static NSUInteger const batchSize = 20;
 	self.collectionView.dataSource = self;
 	self.collectionView.delegate = self;
 	self.collectionView.backgroundColor = [UIColor colorWithRed:200 green:200 blue:200 alpha:1];
-	self.collectionView.contentInset = UIEdgeInsetsMake(kCellMargin, kCellMargin, kCellMargin, kCellMargin);
+	self.collectionView.contentInset = UIEdgeInsetsMake(kCellMargin, 0, kCellMargin, 0);
 	self.collectionView.translatesAutoresizingMaskIntoConstraints = NO;
 	[self.view addSubview:self.collectionView];
 	[self.view addConstraint:[NSLayoutConstraint constraintWithItem:self.collectionView attribute:NSLayoutAttributeTop relatedBy:NSLayoutRelationEqual toItem:self.view attribute:NSLayoutAttributeTop multiplier:1 constant:0]];
@@ -54,10 +61,61 @@ static NSUInteger const batchSize = 20;
 {
 	_arrArticles = [NSMutableArray array];
 
-	for (int i = 1; i <= 20; i++)
+	for (int i = 0; i < kDataSize; i++)
 	{
 		[_arrArticles addObject:[Article articleWithTag:i]];
 	}
+}
+
+- (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
+{
+	[super willRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
+
+	[self.collectionView.collectionViewLayout invalidateLayout];
+}
+
+- (NSUInteger)articlesBatchSize
+{
+	return UIInterfaceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation) ? kDeleteBatchSizeLandscape : kDeleteBatchSizePortrait;
+}
+
+/// Find the smallest number that is a multiple of a divisor that is bigger than or equal to thredshold
+- (NSUInteger)smallestMultipleOfDivisor:(NSUInteger)divisor notLessThan:(NSUInteger)thredshold
+{
+	NSUInteger result;
+	if (thredshold % divisor == 0)
+	{
+		result = thredshold;
+	}
+	else
+	{
+		result = (floor((CGFloat)thredshold / divisor) + 1) * divisor;
+	}
+
+	return result;
+}
+
+- (NSUInteger)biggestMultipleOfDivisor:(NSUInteger)divisor notMoreThan:(NSUInteger)thredshold
+{
+	NSUInteger result;
+	if (thredshold % divisor == 0)
+	{
+		result = thredshold;
+	}
+	else
+	{
+		result = floor((CGFloat)thredshold / divisor) * divisor;
+	}
+
+	return result;
+}
+
+
+#pragma mark - UICollectionViewDelegateFlowLayout
+
+- (UIEdgeInsets)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout*)collectionViewLayout insetForSectionAtIndex:(NSInteger)section
+{
+	return UIEdgeInsetsMake(0, kCellMargin, 0, kCellMargin);
 }
 
 
@@ -77,41 +135,77 @@ static NSUInteger const batchSize = 20;
 	return cell;
 }
 
-- (void)prependDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView
+- (void)prependDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView completionBlock:(void (^)(BOOL, NSUInteger))completionBlock
 {
+	BOOL success = NO;
+	NSUInteger shiftIndex = 0;
+
 	// Check if there is any data to prepend to the current array
-	NSInteger firstTag = ((Article *)_arrArticles[0]).tag;
+	Article *firstArticle = _arrArticles[0];
+	NSInteger firstTag = firstArticle.tag;
 	if (firstTag > 0)
 	{
-		NSInteger insertFromTag = MAX(firstTag - batchSize, 0);
+		// Get the tags for the new articles to be inserted
+		NSInteger insertFromTag = MAX(firstTag - kInsertBatchSize, 0);
+		NSUInteger insertSize = [self biggestMultipleOfDivisor:[self articlesBatchSize] notMoreThan:(firstTag - insertFromTag)];
 		NSInteger insertToTag = firstTag - 1;
 
+		// Adjust the insert from tag
+		insertFromTag = insertToTag - insertSize + 1;
+
+		// Insert articles
 		for (NSInteger i = insertToTag; i >= insertFromTag; i--)
 		{
 			[_arrArticles insertObject:[Article articleWithTag:i] atIndex:0];
 		}
 
-		// Trim the array to keep its size
-		[_arrArticles removeObjectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(batchSize, insertToTag - insertFromTag + 1)]];
+		// Trim the new array
+		//NSUInteger deleteSize = [self smallestMultipleOfDivisor:[self articlesBatchSize] notLessThan:(insertToTag - insertFromTag + 1)];
+		//[_arrArticles removeObjectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, deleteSize)]];
+
+		_arrArticles = [NSMutableArray arrayWithArray:[_arrArticles subarrayWithRange:NSMakeRange(0, MIN(kDataSize, _arrArticles.count))]];
+
+		// Record the result
+		success = YES;
+		shiftIndex = [_arrArticles indexOfObject:firstArticle] - 1;
 	}
+
+	completionBlock(success, shiftIndex);
 }
 
-- (void)appendDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView
+- (void)appendDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView completionBlock:(void (^)(BOOL, NSUInteger))completionBlock
 {
-	NSUInteger lastTag = ((Article *)_arrArticles.lastObject).tag;
+	BOOL success = NO;
+	NSUInteger shiftIndex = 0;
 
-	NSInteger insertFromTag = lastTag + 1;
-	NSInteger insertToTag = lastTag + batchSize - 1;
-
-	for (NSInteger i = insertToTag; i >= insertFromTag; i--)
+	// Check if there is any data to append to the current array
+	Article *lastArticle = _arrArticles.lastObject;
+	NSUInteger lastArticlePrevIndex = _arrArticles.count - 1;
+	NSInteger lastTag = lastArticle.tag;
+	if (lastTag < kMaxTag)
 	{
-		[_arrArticles addObject:[Article articleWithTag:i]];
+		// Get the tags for the new articles to be inserted
+		NSInteger insertFromTag = lastTag + 1;
+		NSInteger insertToTag = MIN(lastTag + kInsertBatchSize, kMaxTag);
+
+		// Insert articles
+		for (NSInteger i = insertFromTag; i <= insertToTag; i++)
+		{
+			[_arrArticles addObject:[Article articleWithTag:i]];
+		}
+
+		// Trim the new array
+		NSUInteger deleteSize = [self biggestMultipleOfDivisor:[self articlesBatchSize] notMoreThan:(insertToTag - insertFromTag + 1)];
+		[_arrArticles removeObjectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, deleteSize)]];
+
+		// Record the result
+		success = YES;
+		NSUInteger lastArticleNewIndex = [_arrArticles indexOfObject:lastArticle];
+		shiftIndex = lastArticlePrevIndex - lastArticleNewIndex - 1;
 	}
 
-	// Trim the array to keep its size
-	[_arrArticles removeObjectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, insertToTag - insertFromTag + 1)]];
+	completionBlock(success, shiftIndex);
 }
 
-#pragma mark - VKInfiniteCollectionViewDelegate
 
 @end

@@ -17,9 +17,10 @@
 
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-
+	UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:[ArticlesListViewController new]];
+	navController.navigationBar.translucent = NO;
 	self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-	self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:[ArticlesListViewController new]];
+	self.window.rootViewController = navController;
 	[self.window makeKeyAndVisible];
 
 	return YES;

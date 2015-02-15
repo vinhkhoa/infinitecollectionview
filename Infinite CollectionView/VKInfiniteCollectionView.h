@@ -14,8 +14,8 @@
 @protocol VKInfiniteCollectionViewDataSource <UICollectionViewDataSource>
 
 @required
-- (void)prependDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView;
-- (void)appendDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView;
+- (void)prependDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView completionBlock:(void (^)(BOOL success, NSUInteger shiftIndex))completionBlock;
+- (void)appendDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView completionBlock:(void (^)(BOOL success, NSUInteger shiftIndex))completionBlock;
 
 @end
 
@@ -26,5 +26,9 @@
 
 #pragma mark - Interface
 @interface VKInfiniteCollectionView : UICollectionView
+
+@property (nonatomic, assign) NSUInteger reloadMargin;
+@property (nonatomic, assign) id <VKInfiniteCollectionViewDelegate> delegate;
+@property (nonatomic, assign) id <VKInfiniteCollectionViewDataSource> dataSource;
 
 @end
