@@ -10,17 +10,20 @@
 #import "ArticleCollectionViewCell.h"
 #import "Article.h"
 
-static CGFloat const kCellWidth = 135;
+static CGFloat const kCellWidth = 80;
 static CGFloat const kCellHeight = 60;
 static CGFloat const kCellMargin = 15;
 
 static NSString *const kCellID = @"cellID";
-static int const kDataSize = 30;
-static int const kInsertBatchSize = 10;
-static int const kMaxTag = 100;
+static int const kDataSize = 40;
+static int const kInsertSize = 10;
 
-static int const kDeleteBatchSizePortrait = 2;
-static int const kDeleteBatchSizeLandscape = 3;
+static int const kMinTag = 1;
+static int const kMaxTag = 10000;
+static int const kInitialTag = 1;
+
+static int const kBatchSizePortrait = 3;
+static int const kBatchSizeLandscape = 5;
 
 @implementation ArticlesListViewController
 {
@@ -61,25 +64,38 @@ static int const kDeleteBatchSizeLandscape = 3;
 {
 	_arrArticles = [NSMutableArray array];
 
-	for (int i = 0; i < kDataSize; i++)
+	for (int i = 1; i <= kDataSize; i++)
 	{
-		[_arrArticles addObject:[Article articleWithTag:i]];
+		[_arrArticles addObject:[Article articleWithTag:(i + kInitialTag - 1)]];
 	}
 }
+
+- (NSUInteger)articlesBatchSize
+{
+	return UIInterfaceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation) ? kBatchSizeLandscape : kBatchSizePortrait;
+}
+
+
+#pragma mark - UIViewControllerRotation
 
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
 {
 	[super willRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
 
+	self.collectionView.rotating = YES;
 	[self.collectionView.collectionViewLayout invalidateLayout];
 }
 
-- (NSUInteger)articlesBatchSize
+- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
 {
-	return UIInterfaceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation) ? kDeleteBatchSizeLandscape : kDeleteBatchSizePortrait;
+	[super didRotateFromInterfaceOrientation:fromInterfaceOrientation];
+
+	self.collectionView.rotating= NO;
 }
 
-/// Find the smallest number that is a multiple of a divisor that is bigger than or equal to thredshold
+
+#pragma mark - Find multiple from divisor & thredshold
+
 - (NSUInteger)smallestMultipleOfDivisor:(NSUInteger)divisor notLessThan:(NSUInteger)thredshold
 {
 	NSUInteger result;
@@ -119,7 +135,7 @@ static int const kDeleteBatchSizeLandscape = 3;
 }
 
 
-#pragma mark - VKInfiniteCollectionViewDataSource
+#pragma mark - UICollectionViewDataSource
 
 - (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section
 {
@@ -135,39 +151,46 @@ static int const kDeleteBatchSizeLandscape = 3;
 	return cell;
 }
 
+
+#pragma mark - VKInfiniteCollectionViewDataSource
+
 - (void)prependDataForInfiniteCollectionView:(VKInfiniteCollectionView *)collectionView completionBlock:(void (^)(BOOL, NSUInteger))completionBlock
 {
 	BOOL success = NO;
 	NSUInteger shiftIndex = 0;
 
-	// Check if there is any data to prepend to the current array
-	Article *firstArticle = _arrArticles[0];
-	NSInteger firstTag = firstArticle.tag;
-	if (firstTag > 0)
+	// Anything to prepend?
+	if ([self hasDataToPrepend])
 	{
-		// Get the tags for the new articles to be inserted
-		NSInteger insertFromTag = MAX(firstTag - kInsertBatchSize, 0);
-		NSUInteger insertSize = [self biggestMultipleOfDivisor:[self articlesBatchSize] notMoreThan:(firstTag - insertFromTag)];
-		NSInteger insertToTag = firstTag - 1;
+		Article *firstArticle = _arrArticles[0];
+		NSUInteger firstTag = firstArticle.tag;
 
-		// Adjust the insert from tag
-		insertFromTag = insertToTag - insertSize + 1;
+		// Get the tags for the new articles to be prepended
+		NSUInteger potentialInsertFromTag;
+		if (firstTag >= kMinTag + kInsertSize)
+		{
+			potentialInsertFromTag = firstTag - kInsertSize;
+		}
+		else
+		{
+			potentialInsertFromTag = kMinTag;
+		}
+		NSUInteger insertSize = [self biggestMultipleOfDivisor:[self articlesBatchSize] notMoreThan:(firstTag - potentialInsertFromTag)];
+		NSUInteger insertToTag = firstTag - 1;
+		NSUInteger insertFromTag = MAX(insertToTag - insertSize + 1, 0);
 
 		// Insert articles
-		for (NSInteger i = insertToTag; i >= insertFromTag; i--)
+		for (NSUInteger i = insertToTag; i >= insertFromTag; i--)
 		{
 			[_arrArticles insertObject:[Article articleWithTag:i] atIndex:0];
 		}
 
-		// Trim the new array
-		//NSUInteger deleteSize = [self smallestMultipleOfDivisor:[self articlesBatchSize] notLessThan:(insertToTag - insertFromTag + 1)];
-		//[_arrArticles removeObjectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, deleteSize)]];
-
 		_arrArticles = [NSMutableArray arrayWithArray:[_arrArticles subarrayWithRange:NSMakeRange(0, MIN(kDataSize, _arrArticles.count))]];
 
 		// Record the result
+		NSUInteger firstArticleNewIndex = [_arrArticles indexOfObject:firstArticle];
+		shiftIndex = firstArticleNewIndex;
 		success = YES;
-		shiftIndex = [_arrArticles indexOfObject:firstArticle] - 1;
 	}
 
 	completionBlock(success, shiftIndex);
@@ -178,34 +201,48 @@ static int const kDeleteBatchSizeLandscape = 3;
 	BOOL success = NO;
 	NSUInteger shiftIndex = 0;
 
-	// Check if there is any data to append to the current array
-	Article *lastArticle = _arrArticles.lastObject;
-	NSUInteger lastArticlePrevIndex = _arrArticles.count - 1;
-	NSInteger lastTag = lastArticle.tag;
-	if (lastTag < kMaxTag)
+	// Anything to append?
+	if ([self hasDataToAppend])
 	{
+		Article *lastArticle = _arrArticles.lastObject;
+		NSUInteger lastArticlePrevIndex = _arrArticles.count - 1;
+		NSUInteger lastTag = lastArticle.tag;
+
 		// Get the tags for the new articles to be inserted
-		NSInteger insertFromTag = lastTag + 1;
-		NSInteger insertToTag = MIN(lastTag + kInsertBatchSize, kMaxTag);
+		NSUInteger insertFromTag = lastTag + 1;
+		NSUInteger insertToTag = MIN(lastTag + kInsertSize, kMaxTag);
+		NSUInteger insertSize = MAX(insertToTag - insertFromTag + 1, 0);
 
 		// Insert articles
-		for (NSInteger i = insertFromTag; i <= insertToTag; i++)
+		for (NSUInteger i = insertFromTag; i <= insertToTag; i++)
 		{
 			[_arrArticles addObject:[Article articleWithTag:i]];
 		}
 
 		// Trim the new array
-		NSUInteger deleteSize = [self biggestMultipleOfDivisor:[self articlesBatchSize] notMoreThan:(insertToTag - insertFromTag + 1)];
+		NSUInteger deleteSize = [self smallestMultipleOfDivisor:[self articlesBatchSize] notLessThan:insertSize];
 		[_arrArticles removeObjectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, deleteSize)]];
 
 		// Record the result
-		success = YES;
 		NSUInteger lastArticleNewIndex = [_arrArticles indexOfObject:lastArticle];
-		shiftIndex = lastArticlePrevIndex - lastArticleNewIndex - 1;
+		shiftIndex = lastArticlePrevIndex - lastArticleNewIndex;
+		success = YES;
 	}
 
 	completionBlock(success, shiftIndex);
 }
 
+
+#pragma mark - Article conditions
+
+- (BOOL)hasDataToPrepend
+{
+	return ((Article *)_arrArticles[0]).tag > kMinTag;
+}
+
+- (BOOL)hasDataToAppend
+{
+	return ((Article *)_arrArticles.lastObject).tag < kMaxTag;
+}
 
 @end

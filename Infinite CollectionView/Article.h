@@ -11,8 +11,8 @@
 @interface Article : NSObject
 
 @property (strong, nonatomic, readonly) NSString *title;
-@property (assign, nonatomic) NSInteger tag;
+@property (assign, nonatomic) NSUInteger tag;
 
-+ (instancetype)articleWithTag:(NSInteger)tag;
++ (instancetype)articleWithTag:(NSUInteger)tag;
 
 @end

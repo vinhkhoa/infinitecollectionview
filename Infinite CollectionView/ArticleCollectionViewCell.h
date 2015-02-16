@@ -12,6 +12,8 @@
 
 @interface ArticleCollectionViewCell : UICollectionViewCell
 
+@property (strong, nonatomic) Article *article;
+
 - (void)setupWithArticle:(Article *)article;
 
 @end

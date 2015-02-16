@@ -432,6 +432,7 @@
 				8EB4544E1A900A1D00F24D5E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		8EB4544F1A900A1D00F24D5E /* Build configuration list for PBXNativeTarget "Infinite CollectionViewTests" */ = {
 			isa = XCConfigurationList;
@@ -440,6 +441,7 @@
 				8EB454511A900A1D00F24D5E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 

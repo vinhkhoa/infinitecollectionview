@@ -13,7 +13,6 @@ static CGFloat const kPadding = 15;
 
 @implementation ArticleCollectionViewCell
 {
-	Article *_article;
 	UILabel *_titleLabel;
 }
 

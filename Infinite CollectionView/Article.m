@@ -10,7 +10,7 @@
 
 @implementation Article
 
-+ (instancetype)articleWithTag:(NSInteger)tag
++ (instancetype)articleWithTag:(NSUInteger)tag
 {
 	Article *result = [Article new];
 	result.tag = tag;
@@ -20,7 +20,7 @@
 
 - (NSString *)title
 {
-	return [NSString stringWithFormat:@"Article %ld", (long)self.tag];
+	return [NSString stringWithFormat:@"%ld", (long)self.tag];
 }
 
 @end

@@ -27,7 +27,7 @@
 #pragma mark - Interface
 @interface VKInfiniteCollectionView : UICollectionView
 
-@property (nonatomic, assign) NSUInteger reloadMargin;
+@property (nonatomic, assign) BOOL rotating;
 @property (nonatomic, assign) id <VKInfiniteCollectionViewDelegate> delegate;
 @property (nonatomic, assign) id <VKInfiniteCollectionViewDataSource> dataSource;
 
